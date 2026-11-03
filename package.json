@@ -1,0 +1,16 @@
+{
+  "name": "tpi-ms2-solicitudes",
+  "version": "1.0.0",
+  "description": "Gestión de solicitudes académicas",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.20.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  }
+}
