@@ -4,7 +4,8 @@
   "description": "Gestión de solicitudes académicas",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test": "tsx --test tests/caracterizacion.test.ts"
   },
   "dependencies": {
     "tsx": "^4.20.3"

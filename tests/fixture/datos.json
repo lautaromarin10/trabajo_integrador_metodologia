@@ -1,0 +1,102 @@
+{
+  "estudiantes": [
+    {
+      "id": 1,
+      "nombre": "Lucía Benítez",
+      "legajo": "45210",
+      "carrera": "Ingeniería en Sistemas",
+      "email": "lucia.benitez@estudiantes.utn.example"
+    },
+    {
+      "id": 2,
+      "nombre": "Mateo Ruiz",
+      "legajo": "45102",
+      "carrera": "Ingeniería Electrónica",
+      "email": "mateo.ruiz@estudiantes.utn.example"
+    },
+    {
+      "id": 3,
+      "nombre": "Ana Gómez",
+      "legajo": "46018",
+      "carrera": "Ingeniería Química",
+      "email": "ana.gomez@estudiantes.utn.example"
+    }
+  ],
+  "responsables": [
+    {
+      "id": 1,
+      "nombre": "Carla Méndez",
+      "area": "Alumnado",
+      "email": "carla.mendez@utn.example"
+    },
+    {
+      "id": 2,
+      "nombre": "Diego Paredes",
+      "area": "Dirección de Carrera",
+      "email": "diego.paredes@utn.example"
+    },
+    {
+      "id": 3,
+      "nombre": "Sofía Vidal",
+      "area": "Bedelía",
+      "email": "sofia.vidal@utn.example"
+    }
+  ],
+  "estados": [
+    { "codigo": 1, "nombre": "Pendiente" },
+    { "codigo": 2, "nombre": "En revision" },
+    { "codigo": 3, "nombre": "Aprobada" },
+    { "codigo": 4, "nombre": "Rechazada" },
+    { "codigo": 5, "nombre": "Cerrada" }
+  ],
+  "solicitudes": [
+    {
+      "id": 1,
+      "estId": 1,
+      "respId": null,
+      "asunto": "Certificado de alumno regular",
+      "detalle": "Lo pide para una beca",
+      "tipo": "CERT",
+      "prio": 2,
+      "est": 1,
+      "fecha": "2026-03-02",
+      "obs": ""
+    },
+    {
+      "id": 2,
+      "estId": 2,
+      "respId": 1,
+      "asunto": "Equivalencia de Análisis",
+      "detalle": "Correlativa de Análisis Matemático I",
+      "tipo": "EQUIV",
+      "prio": 3,
+      "est": 2,
+      "fecha": "2026-03-10",
+      "obs": ""
+    },
+    {
+      "id": 3,
+      "estId": 3,
+      "respId": 2,
+      "asunto": "Cambio de comisión de Física",
+      "detalle": "Pide pasar a la comisión B",
+      "tipo": "COM",
+      "prio": 1,
+      "est": 3,
+      "fecha": "2026-02-18",
+      "obs": ""
+    },
+    {
+      "id": 4,
+      "estId": 1,
+      "respId": null,
+      "asunto": "Justificación de inasistencia",
+      "detalle": "No pudo asistir a la clase del 28 de marzo",
+      "tipo": "JUST",
+      "prio": 2,
+      "est": 1,
+      "fecha": "2026-04-01",
+      "obs": ""
+    }
+  ]
+}
