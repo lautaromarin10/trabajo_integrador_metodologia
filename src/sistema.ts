@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import readline from "node:readline";
 import type { Datos, Estudiante, Responsable, Solicitud } from "./modelo.js";
+import { RegistrarSolicitudInput } from "./dto/RegistrarSolicitudInput.js";
 
 export class Sistema {
   ruta: string;
@@ -61,15 +62,8 @@ export class Sistema {
     return String(codigo);
   }
 
-  registrar(
-    legajo: string,
-    tipo: string,
-    prio: number,
-    asunto: string,
-    detalle: string,
-    obs: string,
-    fecha: string,
-  ): void {
+  registrar(input: RegistrarSolicitudInput): void {
+    const { legajo, tipo, prio, asunto, detalle, obs, fecha } = input;
     const legajoLimpio = legajo ? legajo.trim() : "";
     const tipoLimpio = tipo ? tipo.trim() : "";
     const asuntoLimpio = asunto ? asunto.trim() : "";
@@ -738,7 +732,7 @@ export class Sistema {
         const detalle = this.tomar(args, "--detalle");
         const obs = this.tomar(args, "--obs");
         const fecha = this.tomar(args, "--fecha");
-        this.registrar(legajo, tipo, prio, asunto, detalle, obs, fecha);
+        this.registrar({ legajo, tipo, prio, asunto, detalle, obs, fecha });
       } else if (cmd === "estado") {
         this.cambiarEstado(
           this.tomar(args, "--id"),
@@ -817,15 +811,15 @@ export class Sistema {
                 await preguntar("Fecha (AAAA-MM-DD, vacio = hoy): ")
               ).trim();
               const obs = (await preguntar("Observacion: ")).trim();
-              this.registrar(
+              this.registrar({
                 legajo,
                 tipo,
-                Number(prioTxt),
+                prio: Number(prioTxt),
                 asunto,
                 detalle,
                 obs,
                 fecha,
-              );
+              });
             }
           } else if (op === "2") {
             const id = (await preguntar("Id de solicitud: ")).trim();
