@@ -1,69 +1,52 @@
-import fs from "node:fs";
-import readline from "node:readline";
-import type {
-  Datos,
-  DatosJson,
-  Estudiante,
-  Responsable,
-  Solicitud,
-} from "./modelo.js";
+import type { Datos, Estudiante, Responsable, Solicitud } from "../modelo.js";
 import {
   CodigoEstado,
   Prioridad,
   TipoSolicitud,
-  datosDesdeJson,
-  datosHaciaJson,
   esCodigoEstadoValido,
-} from "./modelo.js";
-import { RegistrarSolicitudInput } from "./dto/RegistrarSolicitudInput.js";
-import { obtenerPlazoSegunTipo } from "./politicas/plazosPorTipo.js";
+} from "../modelo.js";
+import type { RegistrarSolicitudInput } from "../dto/RegistrarSolicitudInput.js";
+import { obtenerPlazoSegunTipo } from "../politicas/plazosPorTipo.js";
+import type { AlmacenamientoDatos } from "../persistencia/AlmacenamientoDatos.js";
+import { FormatoSalida } from "../presentacion/FormatoSalida.js";
 
-export class Sistema {
-  ruta: string;
-  datos: Datos;
+function datosVacios(): Datos {
+  return {
+    estudiantes: [],
+    responsables: [],
+    estados: [],
+    solicitudes: [],
+  };
+}
 
-  constructor(ruta: string) {
-    this.ruta = ruta;
-    this.datos = {
-      estudiantes: [],
-      responsables: [],
-      estados: [],
-      solicitudes: [],
-    };
+export class ServicioSolicitudes {
+  private datos: Datos;
+  private readonly almacenamiento: AlmacenamientoDatos;
+  private readonly formato: FormatoSalida;
+
+  constructor(almacenamiento: AlmacenamientoDatos) {
+    this.almacenamiento = almacenamiento;
+    this.datos = datosVacios();
+    this.formato = new FormatoSalida(() => this.datos);
   }
 
-  cargar(): boolean {
+  intentarCargar(): boolean {
     try {
-      const txt = fs.readFileSync(this.ruta, "utf8");
-      const crudo = JSON.parse(txt) as DatosJson;
-      this.datos = datosDesdeJson(crudo);
+      this.datos = this.almacenamiento.cargar();
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
 
-  dump(): void {
-    const texto = JSON.stringify(datosHaciaJson(this.datos), null, 2) + "\n";
-    fs.writeFileSync(this.ruta, texto, "utf8");
+  private guardar(): void {
+    this.almacenamiento.guardar(this.datos);
   }
 
   plazoSegunTipo(tipo: string): number {
     return obtenerPlazoSegunTipo(tipo);
   }
 
-  fichaEstudiante(e: Estudiante): string {
-    return e.legajo + " | " + e.nombre + " | " + e.carrera + " | " + e.email;
-  }
-
-  nombreDe(codigo: number): string {
-    for (let i = 0; i < this.datos.estados.length; i++) {
-      if (this.datos.estados[i].codigo === codigo) {
-        return this.datos.estados[i].nombre;
-      }
-    }
-    return String(codigo);
-  }
   private limpiarEntrada(texto: string): string {
     return texto ? texto.trim() : "";
   }
@@ -137,6 +120,16 @@ export class Sistema {
       }
     }
     return undefined;
+  }
+
+  private estudiantePorId(id: number): Estudiante | undefined {
+    let encontrado: Estudiante | undefined;
+    for (let i = 0; i < this.datos.estudiantes.length; i++) {
+      if (this.datos.estudiantes[i].id === id) {
+        encontrado = this.datos.estudiantes[i];
+      }
+    }
+    return encontrado;
   }
 
   private obtenerProximoId(): number {
@@ -246,7 +239,7 @@ export class Sistema {
     );
 
     this.datos.solicitudes.push(nueva);
-    this.dump();
+    this.guardar();
 
     let mensaje = "Solicitud " + String(nueva.id);
     mensaje = mensaje + " registrada. ";
@@ -276,8 +269,8 @@ export class Sistema {
     }
     solicitud.estado = codigo;
     solicitud.obs = obs ? obs : "";
-    this.dump();
-    const nombre = this.nombreDe(codigo);
+    this.guardar();
+    const nombre = this.formato.nombreDe(codigo);
     console.log(
       "Solicitud " + String(solicitud.id) + " actualizada a " + nombre + ".",
     );
@@ -305,7 +298,7 @@ export class Sistema {
       return;
     }
     solicitud.responsableId = responsable.id;
-    this.dump();
+    this.guardar();
     console.log(
       "Solicitud " +
         String(solicitud.id) +
@@ -331,93 +324,6 @@ export class Sistema {
     }
   }
 
-  private textoPrioridad(prioridad: number): string {
-    if (prioridad === Prioridad.BAJA) {
-      return "baja";
-    } else if (prioridad === Prioridad.MEDIA) {
-      return "media";
-    } else if (prioridad === Prioridad.ALTA) {
-      return "alta";
-    } else {
-      return String(prioridad);
-    }
-  }
-
-  private nombreEstado(codigo: number): string {
-    let nombreEstado = "";
-    for (let j = 0; j < this.datos.estados.length; j++) {
-      if (this.datos.estados[j].codigo === codigo) {
-        nombreEstado = this.datos.estados[j].nombre;
-      }
-    }
-    return nombreEstado;
-  }
-
-  private estudiantePorId(id: number): Estudiante | undefined {
-    let encontrado: Estudiante | undefined;
-    for (let i = 0; i < this.datos.estudiantes.length; i++) {
-      if (this.datos.estudiantes[i].id === id) {
-        encontrado = this.datos.estudiantes[i];
-      }
-    }
-    return encontrado;
-  }
-
-  private legajoDe(estudianteId: number): string {
-    const estudiante = this.estudiantePorId(estudianteId);
-    if (!estudiante) {
-      return "";
-    }
-    return estudiante.legajo;
-  }
-
-  private nombreResponsable(responsableId: number | null): string {
-    let respTxt = "(sin asignar)";
-    if (responsableId !== null) {
-      for (let j = 0; j < this.datos.responsables.length; j++) {
-        if (this.datos.responsables[j].id === responsableId) {
-          respTxt = this.datos.responsables[j].nombre;
-        }
-      }
-    }
-    return respTxt;
-  }
-
-  private lineaSolicitud(s: Solicitud): string {
-    return (
-      String(s.id) +
-      " | " +
-      s.fecha +
-      " | " +
-      this.nombreEstado(s.estado) +
-      " | " +
-      s.tipo +
-      " | " +
-      this.textoPrioridad(s.prioridad) +
-      " | " +
-      this.legajoDe(s.estudianteId) +
-      " | " +
-      s.asunto +
-      " | " +
-      this.nombreResponsable(s.responsableId)
-    );
-  }
-
-  private listar(encontradas: Solicitud[]): void {
-    if (encontradas.length === 0) {
-      console.log("Sin resultados");
-      console.log("OK");
-      return;
-    }
-    console.log(
-      "ID | FECHA | ESTADO | TIPO | PRIO | LEGAJO | ASUNTO | RESPONSABLE",
-    );
-    for (let i = 0; i < encontradas.length; i++) {
-      console.log(this.lineaSolicitud(encontradas[i]));
-    }
-    console.log("OK");
-  }
-
   buscarPorEstado(n: number): void {
     const encontradas: Solicitud[] = [];
     for (let i = 0; i < this.datos.solicitudes.length; i++) {
@@ -426,7 +332,7 @@ export class Sistema {
         encontradas.push(s);
       }
     }
-    this.listar(encontradas);
+    this.formato.listar(encontradas);
   }
 
   buscarPorTipo(tipo: string): void {
@@ -438,7 +344,7 @@ export class Sistema {
         encontradas.push(s);
       }
     }
-    this.listar(encontradas);
+    this.formato.listar(encontradas);
   }
 
   buscarPorPrioridad(n: number): void {
@@ -449,7 +355,7 @@ export class Sistema {
         encontradas.push(s);
       }
     }
-    this.listar(encontradas);
+    this.formato.listar(encontradas);
   }
 
   reporte(): void {
@@ -476,27 +382,33 @@ export class Sistema {
     }
     console.log(
       "  " +
-        this.nombreDe(CodigoEstado.PENDIENTE) +
+        this.formato.nombreDe(CodigoEstado.PENDIENTE) +
         ": " +
         String(cPendiente),
     );
     console.log(
       "  " +
-        this.nombreDe(CodigoEstado.EN_REVISION) +
+        this.formato.nombreDe(CodigoEstado.EN_REVISION) +
         ": " +
         String(cEnRevision),
     );
     console.log(
-      "  " + this.nombreDe(CodigoEstado.APROBADA) + ": " + String(cAprobada),
+      "  " +
+        this.formato.nombreDe(CodigoEstado.APROBADA) +
+        ": " +
+        String(cAprobada),
     );
     console.log(
       "  " +
-        this.nombreDe(CodigoEstado.RECHAZADA) +
+        this.formato.nombreDe(CodigoEstado.RECHAZADA) +
         ": " +
         String(cRechazada),
     );
     console.log(
-      "  " + this.nombreDe(CodigoEstado.CERRADA) + ": " + String(cCerrada),
+      "  " +
+        this.formato.nombreDe(CodigoEstado.CERRADA) +
+        ": " +
+        String(cCerrada),
     );
 
     console.log("Por tipo:");
@@ -581,7 +493,10 @@ export class Sistema {
       }
       const plazo = this.plazoSegunTipo(s.tipo);
       console.log(
-        this.lineaSolicitud(s) + " | plazo " + String(plazo) + " dias",
+        this.formato.lineaSolicitud(s) +
+          " | plazo " +
+          String(plazo) +
+          " dias",
       );
     }
 
@@ -597,205 +512,8 @@ export class Sistema {
       if (!alumno) {
         continue;
       }
-      console.log(this.fichaEstudiante(alumno));
+      console.log(this.formato.fichaEstudiante(alumno));
     }
     console.log("OK");
-  }
-
-  mostrarAyuda(): void {
-    console.log("Gestión de solicitudes académicas");
-    console.log("1) Registrar solicitud");
-    console.log("2) Cambiar estado");
-    console.log("3) Asignar responsable");
-    console.log("4) Buscar");
-    console.log("5) Reporte");
-    console.log("0) Salir");
-  }
-
-  tomar(args: string[], flag: string): string {
-    const i = args.indexOf(flag);
-    if (i < 0 || i + 1 >= args.length) {
-      return "";
-    }
-    return args[i + 1];
-  }
-
-  hayComando(argv: string[]): boolean {
-    const args = [...argv];
-    const i = args.indexOf("--datos");
-    if (i >= 0) {
-      args.splice(i, 2);
-    }
-    return args.length > 0 && !args[0].startsWith("--");
-  }
-
-  proc(argv: string[]): void {
-    const args = [...argv];
-    const i = args.indexOf("--datos");
-    if (i >= 0) {
-      if (args[i + 1]) {
-        this.ruta = args[i + 1];
-      }
-      args.splice(i, 2);
-    }
-    const cmd = args[0];
-    if (!cmd) {
-      this.mostrarAyuda();
-      return;
-    }
-    try {
-      const leyo = this.cargar();
-      if (!leyo) {
-        console.log("ERROR: no se pudo leer el archivo");
-        process.exitCode = 1;
-        return;
-      }
-      if (cmd === "registrar") {
-        const legajo = this.tomar(args, "--legajo");
-        const tipo = this.tomar(args, "--tipo");
-        const prioridad = Number(this.tomar(args, "--prioridad"));
-        const asunto = this.tomar(args, "--asunto");
-        const detalle = this.tomar(args, "--detalle");
-        const obs = this.tomar(args, "--obs");
-        const fecha = this.tomar(args, "--fecha");
-        this.registrar({
-          legajo,
-          tipo,
-          prioridad,
-          asunto,
-          detalle,
-          obs,
-          fecha,
-        });
-      } else if (cmd === "estado") {
-        this.cambiarEstado(
-          this.tomar(args, "--id"),
-          this.tomar(args, "--estado"),
-          this.tomar(args, "--obs"),
-        );
-      } else if (cmd === "asignar") {
-        this.asignar(
-          this.tomar(args, "--id"),
-          this.tomar(args, "--responsable"),
-        );
-      } else if (cmd === "buscar") {
-        if (args.indexOf("--estado") >= 0) {
-          this.ver("estado", this.tomar(args, "--estado"));
-        } else if (args.indexOf("--tipo") >= 0) {
-          this.ver("tipo", this.tomar(args, "--tipo"));
-        } else if (args.indexOf("--prioridad") >= 0) {
-          this.ver("prioridad", this.tomar(args, "--prioridad"));
-        } else {
-          console.log("ERROR: no se pudo completar la operacion");
-          process.exitCode = 1;
-        }
-      } else if (cmd === "reporte") {
-        this.reporte();
-      } else {
-        console.log("ERROR: no se pudo completar la operacion");
-        process.exitCode = 1;
-      }
-    } catch (e) {
-      console.log("ERROR: no se pudo completar la operacion");
-      process.exitCode = 1;
-    }
-  }
-
-  menuInteractivo(): void {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    const preguntar = (texto: string) =>
-      new Promise<string>((resolve) => {
-        rl.question(texto, (respuesta) => resolve(respuesta));
-      });
-
-    const ciclo = async () => {
-      let seguir = true;
-      while (seguir) {
-        this.mostrarAyuda();
-        const op = (await preguntar("Opcion: ")).trim();
-        if (op === "0") {
-          seguir = false;
-          break;
-        }
-        const leyo = this.cargar();
-        if (!leyo) {
-          console.log("ERROR: no se pudo leer el archivo");
-          process.exitCode = 1;
-          seguir = false;
-          break;
-        }
-        try {
-          if (op === "1") {
-            const legajo = (await preguntar("Legajo: ")).trim();
-            if (!legajo) {
-              console.log("ERROR: no se pudo completar la operacion");
-            } else {
-              const tipo = (
-                await preguntar("Tipo (CERT, EQUIV, COM, JUST, MESA): ")
-              ).trim();
-              const prioridadTxt = (
-                await preguntar("Prioridad (1 baja, 2 media, 3 alta): ")
-              ).trim();
-              const asunto = (await preguntar("Asunto: ")).trim();
-              const detalle = (await preguntar("Detalle: ")).trim();
-              const fecha = (
-                await preguntar("Fecha (AAAA-MM-DD, vacio = hoy): ")
-              ).trim();
-              const obs = (await preguntar("Observacion: ")).trim();
-              this.registrar({
-                legajo,
-                tipo,
-                prioridad: Number(prioridadTxt),
-                asunto,
-                detalle,
-                obs,
-                fecha,
-              });
-            }
-          } else if (op === "2") {
-            const id = (await preguntar("Id de solicitud: ")).trim();
-            const estado = (await preguntar("Estado (1 a 5): ")).trim();
-            const obs = (await preguntar("Observacion: ")).trim();
-            this.cambiarEstado(id, estado, obs);
-          } else if (op === "3") {
-            const id = (await preguntar("Id de solicitud: ")).trim();
-            const resp = (await preguntar("Id de responsable: ")).trim();
-            this.asignar(id, resp);
-          } else if (op === "4") {
-            const campo = (
-              await preguntar("Buscar por (estado, tipo, prioridad): ")
-            ).trim();
-            const valor = (await preguntar("Valor: ")).trim();
-            this.ver(campo, valor);
-          } else if (op === "5") {
-            this.reporte();
-          } else {
-            console.log("ERROR: no se pudo completar la operacion");
-            process.exitCode = 1;
-          }
-        } catch (e) {
-          console.log("ERROR: no se pudo completar la operacion");
-          process.exitCode = 1;
-        }
-      }
-      rl.close();
-    };
-
-    void ciclo();
-  }
-
-  iniciar(argv: string[]): void {
-    if (this.hayComando(argv)) {
-      this.proc(argv);
-      return;
-    }
-    if (!process.stdin.isTTY) {
-      this.mostrarAyuda();
-      return;
-    }
-    this.menuInteractivo();
   }
 }
