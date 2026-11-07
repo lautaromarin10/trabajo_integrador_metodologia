@@ -61,38 +61,26 @@ export class Sistema {
     }
     return String(codigo);
   }
+  private limpiarEntrada(texto: string): string {
+    return texto ? texto.trim() : "";
+  }
 
-  registrar(input: RegistrarSolicitudInput): void {
-    const { legajo, tipo, prio, asunto, detalle, obs, fecha } = input;
-    const legajoLimpio = legajo ? legajo.trim() : "";
-    const tipoLimpio = tipo ? tipo.trim() : "";
-    const asuntoLimpio = asunto ? asunto.trim() : "";
-    const detalleLimpio = detalle ? detalle.trim() : "";
-    const obsLimpia = obs ? obs.trim() : "";
-    let fechaFinal = fecha ? fecha.trim() : "";
+  private esLegajoValido(legajo: string): boolean {
+    return Boolean(legajo && legajo.trim() !== "");
+  }
 
-    if (!legajoLimpio) {
-      console.log("ERROR: no encontrado");
-      process.exitCode = 1;
-      return;
-    }
+  private generarFechaFinal(): string {
+    const hoy = new Date();
+    const anio = String(hoy.getFullYear());
+    const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+    const dia = String(hoy.getDate()).padStart(2, "0");
+    return anio + "-" + mes + "-" + dia;
+  }
 
-    if (!fechaFinal) {
-      const hoy = new Date();
-      const anio = String(hoy.getFullYear());
-      const mes = String(hoy.getMonth() + 1).padStart(2, "0");
-      const dia = String(hoy.getDate()).padStart(2, "0");
-      fechaFinal = anio + "-" + mes + "-" + dia;
-    }
-
+  private fechaConCeros(fechaFinal: string): string {
     const partesFecha = fechaFinal.split("-");
-    let anioNum = 0;
-    let mesNum = 0;
-    let diaNum = 0;
     if (partesFecha.length === 3) {
-      anioNum = Number(partesFecha[0]);
-      mesNum = Number(partesFecha[1]);
-      diaNum = Number(partesFecha[2]);
+      const anioNum = Number(partesFecha[0]);
       let mes = partesFecha[1];
       let dia = partesFecha[2];
       if (mes.length === 1) {
@@ -101,9 +89,21 @@ export class Sistema {
       if (dia.length === 1) {
         dia = "0" + dia;
       }
-      fechaFinal = String(anioNum) + "-" + mes + "-" + dia;
+      return String(anioNum) + "-" + mes + "-" + dia;
     }
+    return fechaFinal;
+  }
 
+  private esFechaValida(fecha: string): boolean {
+    const partesFecha = fecha.split("-");
+    let anioNum = 0;
+    let mesNum = 0;
+    let diaNum = 0;
+    if (partesFecha.length === 3) {
+      anioNum = Number(partesFecha[0]);
+      mesNum = Number(partesFecha[1]);
+      diaNum = Number(partesFecha[2]);
+    }
     if (
       partesFecha.length !== 3 ||
       !anioNum ||
@@ -112,32 +112,103 @@ export class Sistema {
       diaNum < 1 ||
       diaNum > 31
     ) {
-      console.log("ERROR: no se pudo completar la operacion");
-      process.exitCode = 1;
-      return;
+      return false;
     }
     if (mesNum === 2 && diaNum > 29) {
-      console.log("ERROR: no se pudo completar la operacion");
-      process.exitCode = 1;
-      return;
+      return false;
     }
     if (
       (mesNum === 4 || mesNum === 6 || mesNum === 9 || mesNum === 11) &&
       diaNum > 30
     ) {
+      return false;
+    }
+    return true;
+  }
+
+  private estudiantePorLegajo(legajo: string): Estudiante | undefined {
+    for (let i = 0; i < this.datos.estudiantes.length; i++) {
+      const actual = this.datos.estudiantes[i];
+      if (actual.legajo === legajo) {
+        return actual;
+      }
+    }
+    return undefined;
+  }
+
+  private obtenerProximoId(): number {
+    let maxId = 0;
+    for (let i = 0; i < this.datos.solicitudes.length; i++) {
+      const actual = this.datos.solicitudes[i];
+      if (actual.id > maxId) {
+        maxId = actual.id;
+      }
+    }
+    return maxId + 1;
+  }
+
+  private nuevaSolicitud(
+    id: number,
+    estId: number,
+    asunto: string,
+    detalle: string,
+    tipo: string,
+    prio: number,
+    fecha: string,
+    obs: string,
+  ): Solicitud {
+    const nueva: Solicitud = {
+      id: 0,
+      estId: 0,
+      respId: null,
+      asunto: "",
+      detalle: "",
+      tipo: "",
+      prio: 0,
+      est: 0,
+      fecha: "",
+      obs: "",
+    };
+    nueva.id = id;
+    nueva.estId = estId;
+    nueva.respId = null;
+    nueva.asunto = asunto;
+    nueva.detalle = detalle;
+    nueva.tipo = tipo;
+    nueva.prio = prio;
+    nueva.est = 1;
+    nueva.fecha = fecha;
+    nueva.obs = obs;
+    return nueva;
+  }
+
+  registrar(input: RegistrarSolicitudInput): void {
+    const { legajo, tipo, prio, asunto, detalle, obs, fecha } = input;
+    const legajoLimpio = this.limpiarEntrada(legajo);
+    const tipoLimpio = this.limpiarEntrada(tipo);
+    const asuntoLimpio = this.limpiarEntrada(asunto);
+    const detalleLimpio = this.limpiarEntrada(detalle);
+    const obsLimpia = this.limpiarEntrada(obs);
+    let fechaFinal = this.limpiarEntrada(fecha);
+
+    if (!this.esLegajoValido(legajoLimpio)) {
+      console.log("ERROR: no encontrado");
+      process.exitCode = 1;
+      return;
+    }
+
+    if (!fechaFinal) {
+      fechaFinal = this.generarFechaFinal();
+    }
+
+    fechaFinal = this.fechaConCeros(fechaFinal);
+    if (!this.esFechaValida(fechaFinal)) {
       console.log("ERROR: no se pudo completar la operacion");
       process.exitCode = 1;
       return;
     }
 
-    let estudiante: Estudiante | undefined;
-    for (let i = 0; i < this.datos.estudiantes.length; i++) {
-      const actual = this.datos.estudiantes[i];
-      if (actual.legajo === legajoLimpio) {
-        estudiante = actual;
-        break;
-      }
-    }
+    const estudiante = this.estudiantePorLegajo(legajoLimpio);
 
     if (!estudiante) {
       console.log("ERROR: no encontrado");
@@ -160,38 +231,16 @@ export class Sistema {
     }
 
     const plazo = this.plazoSegunTipo(tipoLimpio);
-
-    let maxId = 0;
-    for (let i = 0; i < this.datos.solicitudes.length; i++) {
-      const actual = this.datos.solicitudes[i];
-      if (actual.id > maxId) {
-        maxId = actual.id;
-      }
-    }
-    const nuevoId = maxId + 1;
-
-    const nueva: Solicitud = {
-      id: 0,
-      estId: 0,
-      respId: null,
-      asunto: "",
-      detalle: "",
-      tipo: "",
-      prio: 0,
-      est: 0,
-      fecha: "",
-      obs: "",
-    };
-    nueva.id = nuevoId;
-    nueva.estId = estudiante.id;
-    nueva.respId = null;
-    nueva.asunto = asuntoLimpio;
-    nueva.detalle = detalleLimpio;
-    nueva.tipo = tipoLimpio;
-    nueva.prio = prio;
-    nueva.est = 1;
-    nueva.fecha = fechaFinal;
-    nueva.obs = obsLimpia;
+    const nueva = this.nuevaSolicitud(
+      this.obtenerProximoId(),
+      estudiante.id,
+      asuntoLimpio,
+      detalleLimpio,
+      tipoLimpio,
+      prio,
+      fechaFinal,
+      obsLimpia,
+    );
 
     this.datos.solicitudes.push(nueva);
     this.dump();
@@ -285,14 +334,79 @@ export class Sistema {
     }
   }
 
-  buscarPorEstado(n: number): void {
-    const encontradas: Solicitud[] = [];
-    for (let i = 0; i < this.datos.solicitudes.length; i++) {
-      const s = this.datos.solicitudes[i];
-      if (s.est === n) {
-        encontradas.push(s);
+  private textoPrioridad(prio: number): string {
+    if (prio === 1) {
+      return "baja";
+    } else if (prio === 2) {
+      return "media";
+    } else if (prio === 3) {
+      return "alta";
+    } else {
+      return String(prio);
+    }
+  }
+
+  private nombreEstado(codigo: number): string {
+    let nombreEstado = "";
+    for (let j = 0; j < this.datos.estados.length; j++) {
+      if (this.datos.estados[j].codigo === codigo) {
+        nombreEstado = this.datos.estados[j].nombre;
       }
     }
+    return nombreEstado;
+  }
+
+  private estudiantePorId(id: number): Estudiante | undefined {
+    let encontrado: Estudiante | undefined;
+    for (let i = 0; i < this.datos.estudiantes.length; i++) {
+      if (this.datos.estudiantes[i].id === id) {
+        encontrado = this.datos.estudiantes[i];
+      }
+    }
+    return encontrado;
+  }
+
+  private legajoDe(estId: number): string {
+    const estudiante = this.estudiantePorId(estId);
+    if (!estudiante) {
+      return "";
+    }
+    return estudiante.legajo;
+  }
+
+  private nombreResponsable(respId: number | null): string {
+    let respTxt = "(sin asignar)";
+    if (respId !== null) {
+      for (let j = 0; j < this.datos.responsables.length; j++) {
+        if (this.datos.responsables[j].id === respId) {
+          respTxt = this.datos.responsables[j].nombre;
+        }
+      }
+    }
+    return respTxt;
+  }
+
+  private lineaSolicitud(s: Solicitud): string {
+    return (
+      String(s.id) +
+      " | " +
+      s.fecha +
+      " | " +
+      this.nombreEstado(s.est) +
+      " | " +
+      s.tipo +
+      " | " +
+      this.textoPrioridad(s.prio) +
+      " | " +
+      this.legajoDe(s.estId) +
+      " | " +
+      s.asunto +
+      " | " +
+      this.nombreResponsable(s.respId)
+    );
+  }
+
+  private listar(encontradas: Solicitud[]): void {
     if (encontradas.length === 0) {
       console.log("Sin resultados");
       console.log("OK");
@@ -302,56 +416,20 @@ export class Sistema {
       "ID | FECHA | ESTADO | TIPO | PRIO | LEGAJO | ASUNTO | RESPONSABLE",
     );
     for (let i = 0; i < encontradas.length; i++) {
-      const s = encontradas[i];
-      let prioTxt = "";
-      if (s.prio === 1) {
-        prioTxt = "baja";
-      } else if (s.prio === 2) {
-        prioTxt = "media";
-      } else if (s.prio === 3) {
-        prioTxt = "alta";
-      } else {
-        prioTxt = String(s.prio);
-      }
-      let nombreEstado = "";
-      for (let j = 0; j < this.datos.estados.length; j++) {
-        if (this.datos.estados[j].codigo === s.est) {
-          nombreEstado = this.datos.estados[j].nombre;
-        }
-      }
-      let legajo = "";
-      for (let j = 0; j < this.datos.estudiantes.length; j++) {
-        if (this.datos.estudiantes[j].id === s.estId) {
-          legajo = this.datos.estudiantes[j].legajo;
-        }
-      }
-      let respTxt = "(sin asignar)";
-      if (s.respId !== null) {
-        for (let j = 0; j < this.datos.responsables.length; j++) {
-          if (this.datos.responsables[j].id === s.respId) {
-            respTxt = this.datos.responsables[j].nombre;
-          }
-        }
-      }
-      console.log(
-        String(s.id) +
-          " | " +
-          s.fecha +
-          " | " +
-          nombreEstado +
-          " | " +
-          s.tipo +
-          " | " +
-          prioTxt +
-          " | " +
-          legajo +
-          " | " +
-          s.asunto +
-          " | " +
-          respTxt,
-      );
+      console.log(this.lineaSolicitud(encontradas[i]));
     }
     console.log("OK");
+  }
+
+  buscarPorEstado(n: number): void {
+    const encontradas: Solicitud[] = [];
+    for (let i = 0; i < this.datos.solicitudes.length; i++) {
+      const s = this.datos.solicitudes[i];
+      if (s.est === n) {
+        encontradas.push(s);
+      }
+    }
+    this.listar(encontradas);
   }
 
   buscarPorTipo(tipo: string): void {
@@ -363,65 +441,7 @@ export class Sistema {
         encontradas.push(s);
       }
     }
-    if (encontradas.length === 0) {
-      console.log("Sin resultados");
-      console.log("OK");
-      return;
-    }
-    console.log(
-      "ID | FECHA | ESTADO | TIPO | PRIO | LEGAJO | ASUNTO | RESPONSABLE",
-    );
-    for (let i = 0; i < encontradas.length; i++) {
-      const s = encontradas[i];
-      let prioTxt = "";
-      if (s.prio === 1) {
-        prioTxt = "baja";
-      } else if (s.prio === 2) {
-        prioTxt = "media";
-      } else if (s.prio === 3) {
-        prioTxt = "alta";
-      } else {
-        prioTxt = String(s.prio);
-      }
-      let nombreEstado = "";
-      for (let j = 0; j < this.datos.estados.length; j++) {
-        if (this.datos.estados[j].codigo === s.est) {
-          nombreEstado = this.datos.estados[j].nombre;
-        }
-      }
-      let legajo = "";
-      for (let j = 0; j < this.datos.estudiantes.length; j++) {
-        if (this.datos.estudiantes[j].id === s.estId) {
-          legajo = this.datos.estudiantes[j].legajo;
-        }
-      }
-      let respTxt = "(sin asignar)";
-      if (s.respId !== null) {
-        for (let j = 0; j < this.datos.responsables.length; j++) {
-          if (this.datos.responsables[j].id === s.respId) {
-            respTxt = this.datos.responsables[j].nombre;
-          }
-        }
-      }
-      console.log(
-        String(s.id) +
-          " | " +
-          s.fecha +
-          " | " +
-          nombreEstado +
-          " | " +
-          s.tipo +
-          " | " +
-          prioTxt +
-          " | " +
-          legajo +
-          " | " +
-          s.asunto +
-          " | " +
-          respTxt,
-      );
-    }
-    console.log("OK");
+    this.listar(encontradas);
   }
 
   buscarPorPrioridad(n: number): void {
@@ -432,65 +452,7 @@ export class Sistema {
         encontradas.push(s);
       }
     }
-    if (encontradas.length === 0) {
-      console.log("Sin resultados");
-      console.log("OK");
-      return;
-    }
-    console.log(
-      "ID | FECHA | ESTADO | TIPO | PRIO | LEGAJO | ASUNTO | RESPONSABLE",
-    );
-    for (let i = 0; i < encontradas.length; i++) {
-      const s = encontradas[i];
-      let prioTxt = "";
-      if (s.prio === 1) {
-        prioTxt = "baja";
-      } else if (s.prio === 2) {
-        prioTxt = "media";
-      } else if (s.prio === 3) {
-        prioTxt = "alta";
-      } else {
-        prioTxt = String(s.prio);
-      }
-      let nombreEstado = "";
-      for (let j = 0; j < this.datos.estados.length; j++) {
-        if (this.datos.estados[j].codigo === s.est) {
-          nombreEstado = this.datos.estados[j].nombre;
-        }
-      }
-      let legajo = "";
-      for (let j = 0; j < this.datos.estudiantes.length; j++) {
-        if (this.datos.estudiantes[j].id === s.estId) {
-          legajo = this.datos.estudiantes[j].legajo;
-        }
-      }
-      let respTxt = "(sin asignar)";
-      if (s.respId !== null) {
-        for (let j = 0; j < this.datos.responsables.length; j++) {
-          if (this.datos.responsables[j].id === s.respId) {
-            respTxt = this.datos.responsables[j].nombre;
-          }
-        }
-      }
-      console.log(
-        String(s.id) +
-          " | " +
-          s.fecha +
-          " | " +
-          nombreEstado +
-          " | " +
-          s.tipo +
-          " | " +
-          prioTxt +
-          " | " +
-          legajo +
-          " | " +
-          s.asunto +
-          " | " +
-          respTxt,
-      );
-    }
-    console.log("OK");
+    this.listar(encontradas);
   }
 
   reporte(): void {
@@ -601,53 +563,9 @@ export class Sistema {
       if (s.respId !== null) {
         continue;
       }
-      let prioTxt = "";
-      if (s.prio === 1) {
-        prioTxt = "baja";
-      } else if (s.prio === 2) {
-        prioTxt = "media";
-      } else if (s.prio === 3) {
-        prioTxt = "alta";
-      } else {
-        prioTxt = String(s.prio);
-      }
-      let nombreEstado = "";
-      for (let j = 0; j < this.datos.estados.length; j++) {
-        if (this.datos.estados[j].codigo === s.est) {
-          nombreEstado = this.datos.estados[j].nombre;
-        }
-      }
-      let legajo = "";
-      for (let j = 0; j < this.datos.estudiantes.length; j++) {
-        if (this.datos.estudiantes[j].id === s.estId) {
-          legajo = this.datos.estudiantes[j].legajo;
-        }
-      }
-      let respTxt = "(sin asignar)";
-      if (s.respId !== null) {
-        for (let j = 0; j < this.datos.responsables.length; j++) {
-          if (this.datos.responsables[j].id === s.respId) {
-            respTxt = this.datos.responsables[j].nombre;
-          }
-        }
-      }
       const plazo = this.plazoSegunTipo(s.tipo);
       console.log(
-        String(s.id) +
-          " | " +
-          s.fecha +
-          " | " +
-          nombreEstado +
-          " | " +
-          s.tipo +
-          " | " +
-          prioTxt +
-          " | " +
-          legajo +
-          " | " +
-          s.asunto +
-          " | " +
-          respTxt +
+        this.lineaSolicitud(s) +
           " | plazo " +
           String(plazo) +
           " dias",
@@ -662,12 +580,7 @@ export class Sistema {
         continue;
       }
       vistos.push(idEst);
-      let alumno: Estudiante | undefined;
-      for (let j = 0; j < this.datos.estudiantes.length; j++) {
-        if (this.datos.estudiantes[j].id === idEst) {
-          alumno = this.datos.estudiantes[j];
-        }
-      }
+      const alumno = this.estudiantePorId(idEst);
       if (!alumno) {
         continue;
       }
