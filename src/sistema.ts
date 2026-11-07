@@ -1,6 +1,20 @@
 import fs from "node:fs";
 import readline from "node:readline";
-import type { Datos, Estudiante, Responsable, Solicitud } from "./modelo.js";
+import type {
+  Datos,
+  DatosJson,
+  Estudiante,
+  Responsable,
+  Solicitud,
+} from "./modelo.js";
+import {
+  CodigoEstado,
+  Prioridad,
+  TipoSolicitud,
+  datosDesdeJson,
+  datosHaciaJson,
+  esCodigoEstadoValido,
+} from "./modelo.js";
 import { RegistrarSolicitudInput } from "./dto/RegistrarSolicitudInput.js";
 import { obtenerPlazoSegunTipo } from "./politicas/plazosPorTipo.js";
 
@@ -21,7 +35,8 @@ export class Sistema {
   cargar(): boolean {
     try {
       const txt = fs.readFileSync(this.ruta, "utf8");
-      this.datos = JSON.parse(txt) as Datos;
+      const crudo = JSON.parse(txt) as DatosJson;
+      this.datos = datosDesdeJson(crudo);
       return true;
     } catch (e) {
       return false;
@@ -29,7 +44,7 @@ export class Sistema {
   }
 
   dump(): void {
-    const texto = JSON.stringify(this.datos, null, 2) + "\n";
+    const texto = JSON.stringify(datosHaciaJson(this.datos), null, 2) + "\n";
     fs.writeFileSync(this.ruta, texto, "utf8");
   }
 
@@ -137,41 +152,41 @@ export class Sistema {
 
   private nuevaSolicitud(
     id: number,
-    estId: number,
+    estudianteId: number,
     asunto: string,
     detalle: string,
     tipo: string,
-    prio: number,
+    prioridad: number,
     fecha: string,
     obs: string,
   ): Solicitud {
     const nueva: Solicitud = {
       id: 0,
-      estId: 0,
-      respId: null,
+      estudianteId: 0,
+      responsableId: null,
       asunto: "",
       detalle: "",
       tipo: "",
-      prio: 0,
-      est: 0,
+      prioridad: 0,
+      estado: 0,
       fecha: "",
       obs: "",
     };
     nueva.id = id;
-    nueva.estId = estId;
-    nueva.respId = null;
+    nueva.estudianteId = estudianteId;
+    nueva.responsableId = null;
     nueva.asunto = asunto;
     nueva.detalle = detalle;
     nueva.tipo = tipo;
-    nueva.prio = prio;
-    nueva.est = 1;
+    nueva.prioridad = prioridad;
+    nueva.estado = CodigoEstado.PENDIENTE;
     nueva.fecha = fecha;
     nueva.obs = obs;
     return nueva;
   }
 
   registrar(input: RegistrarSolicitudInput): void {
-    const { legajo, tipo, prio, asunto, detalle, obs, fecha } = input;
+    const { legajo, tipo, prioridad, asunto, detalle, obs, fecha } = input;
     const legajoLimpio = this.limpiarEntrada(legajo);
     const tipoLimpio = this.limpiarEntrada(tipo);
     const asuntoLimpio = this.limpiarEntrada(asunto);
@@ -225,7 +240,7 @@ export class Sistema {
       asuntoLimpio,
       detalleLimpio,
       tipoLimpio,
-      prio,
+      prioridad,
       fechaFinal,
       obsLimpia,
     );
@@ -254,18 +269,12 @@ export class Sistema {
       process.exitCode = 1;
       return;
     }
-    if (
-      codigo !== 1 &&
-      codigo !== 2 &&
-      codigo !== 3 &&
-      codigo !== 4 &&
-      codigo !== 5
-    ) {
+    if (!esCodigoEstadoValido(codigo)) {
       console.log("ERROR: no encontrado");
       process.exitCode = 1;
       return;
     }
-    solicitud.est = codigo;
+    solicitud.estado = codigo;
     solicitud.obs = obs ? obs : "";
     this.dump();
     const nombre = this.nombreDe(codigo);
@@ -277,7 +286,7 @@ export class Sistema {
 
   asignar(idTxt: string, respTxt: string): void {
     const id = Number(idTxt);
-    const respId = Number(respTxt);
+    const responsableId = Number(respTxt);
     let solicitud: Solicitud | undefined;
     for (let i = 0; i < this.datos.solicitudes.length; i++) {
       if (this.datos.solicitudes[i].id === id) {
@@ -286,7 +295,7 @@ export class Sistema {
     }
     let responsable: Responsable | undefined;
     for (let i = 0; i < this.datos.responsables.length; i++) {
-      if (this.datos.responsables[i].id === respId) {
+      if (this.datos.responsables[i].id === responsableId) {
         responsable = this.datos.responsables[i];
       }
     }
@@ -295,7 +304,7 @@ export class Sistema {
       process.exitCode = 1;
       return;
     }
-    solicitud.respId = responsable.id;
+    solicitud.responsableId = responsable.id;
     this.dump();
     console.log(
       "Solicitud " +
@@ -322,15 +331,15 @@ export class Sistema {
     }
   }
 
-  private textoPrioridad(prio: number): string {
-    if (prio === 1) {
+  private textoPrioridad(prioridad: number): string {
+    if (prioridad === Prioridad.BAJA) {
       return "baja";
-    } else if (prio === 2) {
+    } else if (prioridad === Prioridad.MEDIA) {
       return "media";
-    } else if (prio === 3) {
+    } else if (prioridad === Prioridad.ALTA) {
       return "alta";
     } else {
-      return String(prio);
+      return String(prioridad);
     }
   }
 
@@ -354,19 +363,19 @@ export class Sistema {
     return encontrado;
   }
 
-  private legajoDe(estId: number): string {
-    const estudiante = this.estudiantePorId(estId);
+  private legajoDe(estudianteId: number): string {
+    const estudiante = this.estudiantePorId(estudianteId);
     if (!estudiante) {
       return "";
     }
     return estudiante.legajo;
   }
 
-  private nombreResponsable(respId: number | null): string {
+  private nombreResponsable(responsableId: number | null): string {
     let respTxt = "(sin asignar)";
-    if (respId !== null) {
+    if (responsableId !== null) {
       for (let j = 0; j < this.datos.responsables.length; j++) {
-        if (this.datos.responsables[j].id === respId) {
+        if (this.datos.responsables[j].id === responsableId) {
           respTxt = this.datos.responsables[j].nombre;
         }
       }
@@ -380,17 +389,17 @@ export class Sistema {
       " | " +
       s.fecha +
       " | " +
-      this.nombreEstado(s.est) +
+      this.nombreEstado(s.estado) +
       " | " +
       s.tipo +
       " | " +
-      this.textoPrioridad(s.prio) +
+      this.textoPrioridad(s.prioridad) +
       " | " +
-      this.legajoDe(s.estId) +
+      this.legajoDe(s.estudianteId) +
       " | " +
       s.asunto +
       " | " +
-      this.nombreResponsable(s.respId)
+      this.nombreResponsable(s.responsableId)
     );
   }
 
@@ -413,7 +422,7 @@ export class Sistema {
     const encontradas: Solicitud[] = [];
     for (let i = 0; i < this.datos.solicitudes.length; i++) {
       const s = this.datos.solicitudes[i];
-      if (s.est === n) {
+      if (s.estado === n) {
         encontradas.push(s);
       }
     }
@@ -436,7 +445,7 @@ export class Sistema {
     const encontradas: Solicitud[] = [];
     for (let i = 0; i < this.datos.solicitudes.length; i++) {
       const s = this.datos.solicitudes[i];
-      if (s.prio === n) {
+      if (s.prioridad === n) {
         encontradas.push(s);
       }
     }
@@ -447,29 +456,48 @@ export class Sistema {
     const lista = this.datos.solicitudes;
     console.log("Total: " + String(lista.length));
     console.log("Por estado:");
-    let c1 = 0;
-    let c2 = 0;
-    let c3 = 0;
-    let c4 = 0;
-    let c5 = 0;
+    let cPendiente = 0;
+    let cEnRevision = 0;
+    let cAprobada = 0;
+    let cRechazada = 0;
+    let cCerrada = 0;
     for (let i = 0; i < lista.length; i++) {
-      if (lista[i].est === 1) {
-        c1 = c1 + 1;
-      } else if (lista[i].est === 2) {
-        c2 = c2 + 1;
-      } else if (lista[i].est === 3) {
-        c3 = c3 + 1;
-      } else if (lista[i].est === 4) {
-        c4 = c4 + 1;
-      } else if (lista[i].est === 5) {
-        c5 = c5 + 1;
+      if (lista[i].estado === CodigoEstado.PENDIENTE) {
+        cPendiente = cPendiente + 1;
+      } else if (lista[i].estado === CodigoEstado.EN_REVISION) {
+        cEnRevision = cEnRevision + 1;
+      } else if (lista[i].estado === CodigoEstado.APROBADA) {
+        cAprobada = cAprobada + 1;
+      } else if (lista[i].estado === CodigoEstado.RECHAZADA) {
+        cRechazada = cRechazada + 1;
+      } else if (lista[i].estado === CodigoEstado.CERRADA) {
+        cCerrada = cCerrada + 1;
       }
     }
-    console.log("  " + this.nombreDe(1) + ": " + String(c1));
-    console.log("  " + this.nombreDe(2) + ": " + String(c2));
-    console.log("  " + this.nombreDe(3) + ": " + String(c3));
-    console.log("  " + this.nombreDe(4) + ": " + String(c4));
-    console.log("  " + this.nombreDe(5) + ": " + String(c5));
+    console.log(
+      "  " +
+        this.nombreDe(CodigoEstado.PENDIENTE) +
+        ": " +
+        String(cPendiente),
+    );
+    console.log(
+      "  " +
+        this.nombreDe(CodigoEstado.EN_REVISION) +
+        ": " +
+        String(cEnRevision),
+    );
+    console.log(
+      "  " + this.nombreDe(CodigoEstado.APROBADA) + ": " + String(cAprobada),
+    );
+    console.log(
+      "  " +
+        this.nombreDe(CodigoEstado.RECHAZADA) +
+        ": " +
+        String(cRechazada),
+    );
+    console.log(
+      "  " + this.nombreDe(CodigoEstado.CERRADA) + ": " + String(cCerrada),
+    );
 
     console.log("Por tipo:");
     let cert = 0;
@@ -478,33 +506,33 @@ export class Sistema {
     let just = 0;
     let mesa = 0;
     for (let i = 0; i < lista.length; i++) {
-      if (lista[i].tipo === "CERT") {
+      if (lista[i].tipo === TipoSolicitud.CERT) {
         cert = cert + 1;
-      } else if (lista[i].tipo === "EQUIV") {
+      } else if (lista[i].tipo === TipoSolicitud.EQUIV) {
         equiv = equiv + 1;
-      } else if (lista[i].tipo === "COM") {
+      } else if (lista[i].tipo === TipoSolicitud.COM) {
         com = com + 1;
-      } else if (lista[i].tipo === "JUST") {
+      } else if (lista[i].tipo === TipoSolicitud.JUST) {
         just = just + 1;
-      } else if (lista[i].tipo === "MESA") {
+      } else if (lista[i].tipo === TipoSolicitud.MESA) {
         mesa = mesa + 1;
       }
     }
-    console.log("  CERT: " + String(cert));
-    console.log("  EQUIV: " + String(equiv));
-    console.log("  COM: " + String(com));
-    console.log("  JUST: " + String(just));
-    console.log("  MESA: " + String(mesa));
+    console.log("  " + TipoSolicitud.CERT + ": " + String(cert));
+    console.log("  " + TipoSolicitud.EQUIV + ": " + String(equiv));
+    console.log("  " + TipoSolicitud.COM + ": " + String(com));
+    console.log("  " + TipoSolicitud.JUST + ": " + String(just));
+    console.log("  " + TipoSolicitud.MESA + ": " + String(mesa));
 
     const raros: string[] = [];
     for (let i = 0; i < lista.length; i++) {
       const t = lista[i].tipo;
       if (
-        t !== "CERT" &&
-        t !== "EQUIV" &&
-        t !== "COM" &&
-        t !== "JUST" &&
-        t !== "MESA"
+        t !== TipoSolicitud.CERT &&
+        t !== TipoSolicitud.EQUIV &&
+        t !== TipoSolicitud.COM &&
+        t !== TipoSolicitud.JUST &&
+        t !== TipoSolicitud.MESA
       ) {
         if (raros.indexOf(t) === -1) {
           raros.push(t);
@@ -526,11 +554,11 @@ export class Sistema {
     let media = 0;
     let alta = 0;
     for (let i = 0; i < lista.length; i++) {
-      if (lista[i].prio === 1) {
+      if (lista[i].prioridad === Prioridad.BAJA) {
         baja = baja + 1;
-      } else if (lista[i].prio === 2) {
+      } else if (lista[i].prioridad === Prioridad.MEDIA) {
         media = media + 1;
-      } else if (lista[i].prio === 3) {
+      } else if (lista[i].prioridad === Prioridad.ALTA) {
         alta = alta + 1;
       }
     }
@@ -540,7 +568,7 @@ export class Sistema {
 
     let sin = 0;
     for (let i = 0; i < lista.length; i++) {
-      if (lista[i].respId === null) {
+      if (lista[i].responsableId === null) {
         sin = sin + 1;
       }
     }
@@ -548,7 +576,7 @@ export class Sistema {
 
     for (let i = 0; i < lista.length; i++) {
       const s = lista[i];
-      if (s.respId !== null) {
+      if (s.responsableId !== null) {
         continue;
       }
       const plazo = this.plazoSegunTipo(s.tipo);
@@ -560,7 +588,7 @@ export class Sistema {
     console.log("Estudiantes:");
     const vistos: number[] = [];
     for (let i = 0; i < lista.length; i++) {
-      const idEst = lista[i].estId;
+      const idEst = lista[i].estudianteId;
       if (vistos.indexOf(idEst) !== -1) {
         continue;
       }
@@ -625,12 +653,20 @@ export class Sistema {
       if (cmd === "registrar") {
         const legajo = this.tomar(args, "--legajo");
         const tipo = this.tomar(args, "--tipo");
-        const prio = Number(this.tomar(args, "--prioridad"));
+        const prioridad = Number(this.tomar(args, "--prioridad"));
         const asunto = this.tomar(args, "--asunto");
         const detalle = this.tomar(args, "--detalle");
         const obs = this.tomar(args, "--obs");
         const fecha = this.tomar(args, "--fecha");
-        this.registrar({ legajo, tipo, prio, asunto, detalle, obs, fecha });
+        this.registrar({
+          legajo,
+          tipo,
+          prioridad,
+          asunto,
+          detalle,
+          obs,
+          fecha,
+        });
       } else if (cmd === "estado") {
         this.cambiarEstado(
           this.tomar(args, "--id"),
@@ -700,7 +736,7 @@ export class Sistema {
               const tipo = (
                 await preguntar("Tipo (CERT, EQUIV, COM, JUST, MESA): ")
               ).trim();
-              const prioTxt = (
+              const prioridadTxt = (
                 await preguntar("Prioridad (1 baja, 2 media, 3 alta): ")
               ).trim();
               const asunto = (await preguntar("Asunto: ")).trim();
@@ -712,7 +748,7 @@ export class Sistema {
               this.registrar({
                 legajo,
                 tipo,
-                prio: Number(prioTxt),
+                prioridad: Number(prioridadTxt),
                 asunto,
                 detalle,
                 obs,

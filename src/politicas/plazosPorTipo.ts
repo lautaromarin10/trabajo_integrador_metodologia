@@ -1,12 +1,19 @@
-const plazaPorTipo: Record<string, number> = {
-  CERT: 5,
-  EQUIV: 20,
-  COM: 7,
-  JUST: 3,
-  MESA: 10,
-  default: 15,
+import { TipoSolicitud } from "../modelo.js";
+
+const DEFAULT_PLAZO = 15;
+
+const plazosPorTipo: Record<string, number> = {
+  [TipoSolicitud.CERT]: 5,
+  [TipoSolicitud.EQUIV]: 20,
+  [TipoSolicitud.COM]: 7,
+  [TipoSolicitud.JUST]: 3,
+  [TipoSolicitud.MESA]: 10,
 };
 
 export const obtenerPlazoSegunTipo = (tipo: string): number => {
-  return plazaPorTipo[tipo] || plazaPorTipo.default;
+  const plazo = plazosPorTipo[tipo];
+  if (plazo === undefined) {
+    return DEFAULT_PLAZO;
+  }
+  return plazo;
 };
