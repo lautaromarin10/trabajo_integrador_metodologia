@@ -2,6 +2,7 @@ import fs from "node:fs";
 import readline from "node:readline";
 import type { Datos, Estudiante, Responsable, Solicitud } from "./modelo.js";
 import { RegistrarSolicitudInput } from "./dto/RegistrarSolicitudInput.js";
+import { obtenerPlazoSegunTipo } from "./politicas/plazosPorTipo.js";
 
 export class Sistema {
   ruta: string;
@@ -33,20 +34,7 @@ export class Sistema {
   }
 
   plazoSegunTipo(tipo: string): number {
-    switch (tipo) {
-      case "CERT":
-        return 5;
-      case "EQUIV":
-        return 20;
-      case "COM":
-        return 7;
-      case "JUST":
-        return 3;
-      case "MESA":
-        return 10;
-      default:
-        return 15;
-    }
+    return obtenerPlazoSegunTipo(tipo);
   }
 
   fichaEstudiante(e: Estudiante): string {
@@ -565,10 +553,7 @@ export class Sistema {
       }
       const plazo = this.plazoSegunTipo(s.tipo);
       console.log(
-        this.lineaSolicitud(s) +
-          " | plazo " +
-          String(plazo) +
-          " dias",
+        this.lineaSolicitud(s) + " | plazo " + String(plazo) + " dias",
       );
     }
 
