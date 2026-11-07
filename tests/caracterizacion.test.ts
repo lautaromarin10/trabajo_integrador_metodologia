@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+const require = createRequire(import.meta.url);
+const tsxCli = require.resolve("tsx/cli");
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tsx = path.join(root, "node_modules", ".bin", "tsx");
 const fixture = path.join(root, "tests", "fixture", "datos.json");
 const datosDefault = path.join(root, "datos.json");
 
@@ -19,7 +22,7 @@ function copiaTemporal(): string {
 }
 
 function correr(args: string[]) {
-  return spawnSync(tsx, ["src/index.ts", ...args], {
+  return spawnSync(process.execPath, [tsxCli, "src/index.ts", ...args], {
     cwd: root,
     encoding: "utf8",
   });
